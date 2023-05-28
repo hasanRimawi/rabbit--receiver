@@ -4,12 +4,22 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.MessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+
+import DTO.EmployeeDto;
+
+import java.util.List;
+
+import org.springframework.amqp.core.AmqpTemplate;
 
 //import com.example.services.RabbitConsumer;
 
@@ -18,6 +28,10 @@ import org.springframework.amqp.core.Queue;
 
 @Configuration
 public class ListenerConfig {
+	final static String queueName = "spring-boot";
+	final static String queueName2 = "summer-boot";
+
+
 //	 @Bean
 //	  SimpleMessageListenerContainer container(ConnectionFactory connectionFactory,
 //	      MessageListenerAdapter listenerAdapter) {
@@ -34,12 +48,20 @@ public class ListenerConfig {
 //	  }
 	@Bean(name = "firstQueue")
 	Queue queue() {
-		return new Queue("spring-boot", false);
+		Queue x = new Queue(queueName, false);
+		x.addArgument("x-max-length", 5);
+//		x.addArgument("x-overflow", "reject-publish");
+		x.addArgument("x-message-ttl", Integer.parseUnsignedInt("1000"));
+		return x;
 	}
 
 	@Bean(name = "secondQueue")
 	Queue queue2() {
-		return new Queue("summer-boot", false);
+		Queue x = new Queue(queueName2, false);
+		x.addArgument("x-max-length", 5);
+//		x.addArgument("x-overflow", "reject-publish");
+		x.addArgument("x-message-ttl", Integer.parseUnsignedInt("1000"));
+		return x;
 	}
 
 	@Bean
@@ -50,7 +72,8 @@ public class ListenerConfig {
 		return cachingConnectionFactory;
 	}
 
-	// create MessageListenerContainer using custom connection factory assigns a class to handle messages
+	// create MessageListenerContainer using custom connection factory assigns a
+	// class to handle messages
 //	@Bean
 //	MessageListenerContainer messageListenerContainer() {
 //		SimpleMessageListenerContainer simpleMessageListenerContainer = new SimpleMessageListenerContainer();
@@ -60,15 +83,20 @@ public class ListenerConfig {
 //		return simpleMessageListenerContainer;
 //
 //	}
+	@Bean
+	public MessageConverter jsonMessageConverter() {
+		return new Jackson2JsonMessageConverter();
+	}
 
 	@Bean
 	public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory() {
 		SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
 		factory.setConnectionFactory(connectionFactory());
-		factory.setConcurrentConsumers(5); // Set the desired number of consumer threads
-		factory.setMaxConcurrentConsumers(10); // Set the maximum number of consumer threads
+		factory.setConcurrentConsumers(1); // Set the desired number of consumer threads
+		factory.setMaxConcurrentConsumers(2); // Set the maximum number of consumer threads
 		return factory;
 	}
+
 
 	@RabbitListener(queues = "spring-boot")
 	public void receiveMessage(Message message) {
@@ -79,10 +107,14 @@ public class ListenerConfig {
 			e.printStackTrace();
 		}
 //		System.out.println("retrieved from queue ONE -- " + Thread.currentThread().getId());
-		System.out.println("Listener Side (spring queue listener) Message was recieved: " + new String(message.getBody()) + "   "
-				+ message.getMessageProperties().getConsumerQueue() + "\n\n");
+		MessageConverter converter = jsonMessageConverter();
+		List<EmployeeDto> x = (List<EmployeeDto>) converter.fromMessage(message);
+		System.out.println(x.get(0));
+		System.out.println("Listener Side (spring queue listener) Message was recieved: "
+				+ new String(message.getBody()) + "   " + message.getMessageProperties().getConsumerQueue() + "\n\n");
 //		System.out.println("Message is: " + message.getBody());
 	}
+
 	@RabbitListener(queues = "summer-boot")
 	public void receiveMessageQ2(Message message) {
 		try {
@@ -91,8 +123,8 @@ public class ListenerConfig {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		System.out.println("Listener Side (summer queue listener) Message was recieved: " + new String(message.getBody()) + "   "
-				+ message.getMessageProperties().getConsumerQueue() + "\n\n");
+		System.out.println("Listener Side (summer queue listener) Message was recieved: "
+				+ new String(message.getBody()) + "   " + message.getMessageProperties().getConsumerQueue() + "\n\n");
 	}
 
 }
